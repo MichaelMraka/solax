@@ -20,10 +20,10 @@ from solax.inverters import (
 
 # registry of inverters
 REGISTRY = [
+    X3HybridG4,
     XHybrid,
     X3,
     X3V34,
-    X3HybridG4,
     X1,
     X1Mini,
     X1MiniV34,

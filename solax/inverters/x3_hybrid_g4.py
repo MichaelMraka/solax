@@ -2,7 +2,17 @@ import voluptuous as vol
 
 from solax.inverter import Inverter
 from solax.units import Total, Units
-from solax.utils import div10, div100, pack_u16, to_signed, to_signed32, twoway_div10
+from solax.utils import (
+    div10,
+    div100,
+    div1000,
+    pack_u16,
+    to_signed,
+    to_signed32,
+    to_url,
+    twoway_div10,
+    twoway_div100,
+)
 
 
 class X3HybridG4(Inverter):
@@ -48,6 +58,36 @@ class X3HybridG4(Inverter):
         }.get(run_mode)
 
     @classmethod
+    def _decode_work_mode(cls, mode):
+        return {
+            0: "Self Use Mode",
+            1: "Force Time Mode",
+            2: "Back Up Mode",
+            3: "Feed-in Priority",
+        }.get(mode)
+
+    @classmethod
+    def _decode_bms_status(cls, mode):
+        return "OK" if mode == 1 else "Fail"
+
+    @classmethod
+    def _to_time(cls, value):
+        value = int(value)
+        second = value%256/60
+        value >>=8
+        minute = value%256
+        value >>=8
+        hour = value%256
+        value >>=8
+        day = value%256
+        value >>=8
+        month = value%256
+        value >>=8
+        year = 2000 + value%256
+        # should return datetime.datetime
+        return f"{year:04d}-{month:02d}-{day:02d} {hour:02d}:{minute:02d}:{second:06.3f}"
+
+    @classmethod
     def response_decoder(cls):
         return {
             "Grid 1 Voltage": (0, Units.V, div10),
@@ -59,6 +99,7 @@ class X3HybridG4(Inverter):
             "Grid 1 Power": (6, Units.W, to_signed),
             "Grid 2 Power": (7, Units.W, to_signed),
             "Grid 3 Power": (8, Units.W, to_signed),
+            "Grid Power total": (9, Units.W, to_signed),
             "PV1 Voltage": (10, Units.V, div10),
             "PV2 Voltage": (11, Units.V, div10),
             "PV1 Current": (12, Units.A, div10),
@@ -68,27 +109,55 @@ class X3HybridG4(Inverter):
             "Grid 1 Frequency": (16, Units.HZ, div100),
             "Grid 2 Frequency": (17, Units.HZ, div100),
             "Grid 3 Frequency": (18, Units.HZ, div100),
-            "Run mode": (19, Units.NONE),
-            "Run mode text": (19, Units.NONE, X3HybridG4._decode_run_mode),
-            "EPS 1 Voltage": (23, Units.W, div10),
-            "EPS 2 Voltage": (24, Units.W, div10),
-            "EPS 3 Voltage": (25, Units.W, div10),
-            "EPS 1 Current": (26, Units.W, twoway_div10),
-            "EPS 2 Current": (27, Units.W, twoway_div10),
-            "EPS 3 Current": (28, Units.W, twoway_div10),
+            "Inverter Operation mode": (19, Units.NONE, X3HybridG4._decode_run_mode),
+            "EPS 1 Voltage": (23, Units.V, div10),
+            "EPS 2 Voltage": (24, Units.V, div10),
+            "EPS 3 Voltage": (25, Units.V, div10),
+            "EPS 1 Current": (26, Units.A, twoway_div10),
+            "EPS 2 Current": (27, Units.A, twoway_div10),
+            "EPS 3 Current": (28, Units.A, twoway_div10),
             "EPS 1 Power": (29, Units.W, to_signed),
             "EPS 2 Power": (30, Units.W, to_signed),
             "EPS 3 Power": (31, Units.W, to_signed),
-            "Feed-in Power ": (pack_u16(34, 35), Units.W, to_signed32),
+            "EPS Frequency": (32, Units.HZ, div100),
+            "Feed-in Power": (pack_u16(34, 35), Units.W, to_signed32),
+            "Battery Voltage": (39, Units.V, div100),
+            "Battery Current": (40, Units.A, twoway_div100),
             "Battery Power": (41, Units.W, to_signed),
-            "Radiator Temperature": (54, Units.C, to_signed),
+            "Battery BMS Status": (45, Units.NONE, X3HybridG4._decode_bms_status),
+            "Inverter CPU Temperature ": (46, Units.C, to_signed),
+            "Inverter Consumption": (47, Units.W, to_signed),
+            "Inverter Time": (pack_u16(49, 50, 51), Units.NONE, X3HybridG4._to_time),
+            "Inverter Temperature": (54, Units.C, to_signed),
             "Yield total": (pack_u16(68, 69), Total(Units.KWH), div10),
-            "Yield today": (70, Units.KWH, div10),
+            "Yield today": (70, Total(Units.KWH), div10),  # incl. battery
+            "Battery Discharge Energy": (
+                pack_u16(74, 75),
+                Total(Units.KWH),
+                div10,
+            ),
+            "Battery Charge Energy": (
+                pack_u16(76, 77),
+                Total(Units.KWH),
+                div10,
+            ),
+            "Battery Discharge today": (78, Total(Units.KWH), div10),
+            "Battery Charge today": (79, Total(Units.KWH), div10),
+            "PV Energy": (pack_u16(80, 81), Total(Units.KWH), div10),
+            "PV Energy today": (82, Total(Units.KWH), div10),
+            "EPS Energy": (pack_u16(83, 84), Total(Units.KWH), div10),
+            "EPS Energy today": (85, Total(Units.KWH), div10),
             "Feed-in Energy": (pack_u16(86, 87), Total(Units.KWH), div100),
             "Consumed Energy": (pack_u16(88, 89), Total(Units.KWH), div100),
+            "Feed-in Energy today": (pack_u16(90, 91), Total(Units.KWH), div100),
+            "Consumed Energy today": (pack_u16(92, 93), Total(Units.KWH), div100),
             "Battery Remaining Capacity": (103, Units.PERCENT),
             "Battery Temperature": (105, Units.C, to_signed),
-            "Battery Voltage": (pack_u16(169, 170), Units.V, div100),
+            "Battery Remaining Energy": (106, Units.KWH, div10),
+            "Battery Energy Flow": (pack_u16(127, 128), Total(Units.KWH), div1000), # Charged+Discarged
+            "Inverter Work Mode": (168, Units.NONE, X3HybridG4._decode_work_mode),
+            # duplicated battery voltage field
+            # "Battery Voltage": (pack_u16(169, 170), Units.V, div100),
         }
 
     # pylint: enable=duplicate-code
