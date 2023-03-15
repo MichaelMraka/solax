@@ -10,7 +10,7 @@ class Packer(Protocol):  # pragma: no cover
      data into one raw value
     """
 
-    def __call__(self, *vals: float) -> float:
+    def __call__(self, *vals: int) -> int:
         ...
 
 
@@ -28,8 +28,8 @@ class PackerBuilder(Protocol):  # pragma: no cover
         ...
 
 
-def __u16_packer(*values: float) -> float:
-    accumulator = 0.0
+def __u16_packer(*values: int) -> int:
+    accumulator = 0
     stride = 1
     for value in values:
         accumulator += value * stride

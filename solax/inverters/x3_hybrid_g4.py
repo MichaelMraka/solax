@@ -26,7 +26,7 @@ class X3HybridG4(Inverter):
             vol.Required("ver"): str,
             vol.Required("Data"): vol.Schema(
                 vol.All(
-                    [vol.Coerce(float)],
+                    [vol.Coerce(int)],
                     vol.Length(min=300, max=300),
                 )
             ),
@@ -86,6 +86,15 @@ class X3HybridG4(Inverter):
         year = 2000 + value%256
         # should return datetime.datetime
         return f"{year:04d}-{month:02d}-{day:02d} {hour:02d}:{minute:02d}:{second:06.3f}"
+
+    @classmethod
+    def _to_string(cls, value):
+        value = int(value)
+        chars = []
+        while value > 0:
+            chars.append(chr(value%256))
+            value >>=8
+        return ''.join(chars)
 
     @classmethod
     def response_decoder(cls):
@@ -155,6 +164,11 @@ class X3HybridG4(Inverter):
             "Battery Temperature": (105, Units.C, to_signed),
             "Battery Remaining Energy": (106, Units.KWH, div10),
             "Battery Energy Flow": (pack_u16(127, 128), Total(Units.KWH), div1000), # Charged+Discarged
+            "Battery BMS SN": (pack_u16(129, 130, 131, 132, 133, 134, 135), Units.NONE, X3HybridG4._to_string),
+            "Battery Slave 1 SN": (pack_u16(136, 137, 138, 139, 140, 141, 142), Units.NONE, X3HybridG4._to_string),
+            "Battery Slave 2 SN": (pack_u16(143, 144, 145, 146, 147, 148, 149), Units.NONE, X3HybridG4._to_string),
+            "Battery Slave 3 SN": (pack_u16(150, 151, 152, 153, 154, 155, 156), Units.NONE, X3HybridG4._to_string),
+            "Battery Slave 4 SN": (pack_u16(157, 158, 159, 160, 161, 162, 163), Units.NONE, X3HybridG4._to_string),
             "Inverter Work Mode": (168, Units.NONE, X3HybridG4._decode_work_mode),
             # duplicated battery voltage field
             # "Battery Voltage": (pack_u16(169, 170), Units.V, div100),
